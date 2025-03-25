@@ -12,17 +12,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "your-secret-key")
+app.secret_key = os.getenv("SECRET_KEY")
 app.config['SESSION_TYPE'] = 'filesystem'
 
-# Default admin credentials (should be changed in production)
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD_HASH", generate_password_hash("admin"))
+# Get credentials from environment variables with no defaults
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # GitHub configuration
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 REPO_OWNER = os.getenv("REPO_OWNER")
 REPO_NAME = os.getenv("REPO_NAME")
+
+# Check if required environment variables are set
+if not all([app.secret_key, ADMIN_USERNAME, ADMIN_PASSWORD, GITHUB_TOKEN, REPO_OWNER, REPO_NAME]):
+    print("WARNING: One or more required environment variables are missing!")
 
 def get_github_api():
     """Initialize GitHub API client with token"""
@@ -140,7 +144,8 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD, password):
+        # Simple direct comparison - no password hashing
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['user'] = username
             return redirect(url_for('dashboard'))
         else:
