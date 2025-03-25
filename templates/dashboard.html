@@ -95,6 +95,30 @@
                 </div>
             </div>
         </div>
+        
+        <div id="logs-container" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-terminal"></i> Workflow Logs</span>
+                    <button type="button" class="btn-close btn-close-white" id="close-logs"></button>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <select id="job-selector" class="form-select form-select-sm">
+                            <option value="">Select a job to view logs</option>
+                        </select>
+                    </div>
+                    <div id="logs-content" style="max-height: 500px; overflow-y: auto;">
+                        <div class="text-center p-4">
+                            <div class="spinner-border text-secondary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Select a job to view its logs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -144,6 +168,29 @@
         </div>
     </div>
 </div>
+
+<!-- Logs Modal -->
+<div class="modal fade" id="logsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-terminal"></i> Workflow Logs</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="logs-modal-content">
+                <div class="mb-3">
+                    <select id="modal-job-selector" class="form-select form-select-sm">
+                        <option value="">Select a job to view logs</option>
+                    </select>
+                </div>
+                <pre id="modal-logs-output" class="p-3 rounded bg-black text-light" style="max-height: 60vh; overflow-y: auto;"></pre>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -151,6 +198,7 @@
     const refreshInterval = 60000; // 1 minute refresh interval
     let refreshTimer;
     let workflowRuns = [];
+    let currentRunIndex = -1;
     
     // Initial load
     document.addEventListener('DOMContentLoaded', function() {
@@ -163,6 +211,25 @@
         document.getElementById('refresh-all-btn').addEventListener('click', loadWorkflowRuns);
         document.getElementById('close-rdp-details').addEventListener('click', function() {
             document.getElementById('rdp-details-container').style.display = 'none';
+        });
+        document.getElementById('close-logs').addEventListener('click', function() {
+            document.getElementById('logs-container').style.display = 'none';
+        });
+        
+        // Job selector for logs
+        document.getElementById('job-selector').addEventListener('change', function() {
+            const jobId = this.value;
+            if (jobId) {
+                loadJobLogs(jobId, 'logs-content');
+            }
+        });
+        
+        // Modal job selector for logs
+        document.getElementById('modal-job-selector').addEventListener('change', function() {
+            const jobId = this.value;
+            if (jobId) {
+                loadJobLogs(jobId, 'modal-logs-output');
+            }
         });
         
         // Workflow creation form
@@ -195,6 +262,11 @@
                 updateWorkflowTable(data);
                 updateLastUpdated();
                 updateActiveCount(data);
+                
+                // Update current run details if viewing
+                if (currentRunIndex >= 0 && currentRunIndex < workflowRuns.length) {
+                    viewRdpDetails(currentRunIndex);
+                }
             })
             .catch(error => {
                 console.error('Error fetching workflow runs:', error);
@@ -223,7 +295,7 @@
         }
         
         let html = '';
-        runs.forEach(run => {
+        runs.forEach((run, index) => {
             const statusBadge = getStatusBadge(run.status, run.conclusion);
             const remainingTime = run.remaining_time;
             
@@ -235,8 +307,11 @@
                     <td>${run.uptime}</td>
                     <td>${remainingTime}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-info" onclick="viewRdpDetails(${runs.indexOf(run)})">
+                        <button class="btn btn-sm btn-outline-info" onclick="viewRdpDetails(${index})">
                             <i class="bi bi-info-circle"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewLogs(${index})">
+                            <i class="bi bi-terminal"></i>
                         </button>
                         <a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-github"></i>
@@ -279,6 +354,7 @@
     }
     
     function viewRdpDetails(index) {
+        currentRunIndex = index;
         const run = workflowRuns[index];
         
         // Create the RDP details HTML
@@ -305,6 +381,9 @@
                     <a href="mstsc.exe /v:${run.rdp_info.ip}" class="btn btn-sm btn-primary">
                         <i class="bi bi-display"></i> Connect to RDP
                     </a>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewLogs(${index})">
+                        <i class="bi bi-terminal"></i> View Logs
+                    </button>
                     <a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-github"></i> View on GitHub
                     </a>
@@ -315,6 +394,14 @@
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> RDP connection details are not available yet. 
                     Please wait for the workflow to set up the RDP environment.
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewLogs(${index})">
+                        <i class="bi bi-terminal"></i> View Logs
+                    </button>
+                    <a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-github"></i> View on GitHub
+                    </a>
                 </div>
             `;
         }
@@ -330,6 +417,122 @@
         if (window.innerWidth < 768) {
             new bootstrap.Modal(document.getElementById('rdpDetailsModal')).show();
         }
+    }
+    
+    function viewLogs(index) {
+        currentRunIndex = index;
+        const run = workflowRuns[index];
+        
+        // Display logs container
+        document.getElementById('logs-container').style.display = 'block';
+        
+        // Update job selectors
+        const jobSelector = document.getElementById('job-selector');
+        const modalJobSelector = document.getElementById('modal-job-selector');
+        
+        // Clear previous options
+        jobSelector.innerHTML = '<option value="">Select a job to view logs</option>';
+        modalJobSelector.innerHTML = '<option value="">Select a job to view logs</option>';
+        
+        // Add jobs to selectors
+        if (run.job_ids && run.job_ids.length > 0) {
+            run.job_ids.forEach((jobId, i) => {
+                const option = document.createElement('option');
+                option.value = jobId;
+                option.textContent = `Job #${i+1}`;
+                
+                const modalOption = option.cloneNode(true);
+                
+                jobSelector.appendChild(option);
+                modalJobSelector.appendChild(modalOption);
+            });
+            
+            // Auto-select first job
+            jobSelector.value = run.job_ids[0];
+            modalJobSelector.value = run.job_ids[0];
+            
+            // Load logs for first job
+            loadJobLogs(run.job_ids[0], 'logs-content');
+            loadJobLogs(run.job_ids[0], 'modal-logs-output');
+        } else {
+            document.getElementById('logs-content').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> No jobs found for this workflow run.
+                </div>
+            `;
+            document.getElementById('modal-logs-output').innerHTML = 'No jobs found for this workflow run.';
+        }
+        
+        // If on mobile, show the modal
+        if (window.innerWidth < 768) {
+            new bootstrap.Modal(document.getElementById('logsModal')).show();
+        }
+    }
+    
+    function loadJobLogs(jobId, targetElementId) {
+        const targetElement = document.getElementById(targetElementId);
+        
+        // Show loading
+        targetElement.innerHTML = `
+            <div class="text-center p-4">
+                <div class="spinner-border text-secondary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading logs...</p>
+            </div>
+        `;
+        
+        // Fetch logs
+        fetch(`/api/job-logs/${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.logs) {
+                    // Format logs
+                    const formattedLogs = formatLogs(data.logs);
+                    
+                    // Display logs
+                    if (targetElementId === 'logs-content') {
+                        targetElement.innerHTML = `
+                            <div class="logs-wrapper">
+                                <pre class="p-3 rounded bg-black text-light">${formattedLogs}</pre>
+                            </div>
+                        `;
+                    } else {
+                        targetElement.textContent = data.logs;
+                    }
+                } else {
+                    targetElement.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> No logs available for this job.
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching logs:', error);
+                targetElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error loading logs: ${error}
+                    </div>
+                `;
+            });
+    }
+    
+    function formatLogs(logsText) {
+        // Escape HTML
+        const escapedText = logsText
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        
+        // Add color to important info
+        return escapedText
+            .replace(/ERROR/gi, '<span class="text-danger">ERROR</span>')
+            .replace(/WARNING/gi, '<span class="text-warning">WARNING</span>')
+            .replace(/IP:/gi, '<span class="text-info">IP:</span>')
+            .replace(/Username:/gi, '<span class="text-info">Username:</span>')
+            .replace(/Password:/gi, '<span class="text-info">Password:</span>')
+            .replace(/Successful/gi, '<span class="text-success">Successful</span>');
     }
     
     function createWorkflowRun(workflowId) {
