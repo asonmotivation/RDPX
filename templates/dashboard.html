@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h2><i class="bi bi-display"></i> RDP Monitoring Dashboard</h2>
+        <p class="text-secondary">Monitor your GitHub Actions RDP instances</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <button id="refresh-btn" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-clockwise"></i> Refresh Data
+        </button>
+        <button id="create-workflow-btn" class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#createWorkflowModal">
+            <i class="bi bi-play-fill"></i> Start New RDP
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-info-circle"></i> Repository Info</span>
+            </div>
+            <div class="card-body">
+                <div class="info-box">
+                    <p><i class="bi bi-github"></i> <strong>Repository:</strong> <a href="https://github.com/{{ repo_owner }}/{{ repo_name }}" target="_blank" class="text-info">{{ repo_owner }}/{{ repo_name }}</a></p>
+                </div>
+                <div class="info-box">
+                    <p><i class="bi bi-clock-history"></i> <strong>Last Updated:</strong> <span id="last-updated">Loading...</span></p>
+                </div>
+                <div class="info-box">
+                    <p><i class="bi bi-hdd-rack"></i> <strong>Active RDPs:</strong> <span id="active-count">0</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createWorkflowModal">
+                        <i class="bi bi-plus-circle"></i> Create Win2019 RDP
+                    </button>
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createWorkflowModal">
+                        <i class="bi bi-plus-circle"></i> Create Win2022 RDP
+                    </button>
+                    <button id="refresh-all-btn" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-repeat"></i> Refresh All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-check"></i> Active Workflow Runs</span>
+                <span class="refresh-icon" id="refresh-runs"><i class="bi bi-arrow-clockwise"></i></span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Name</th>
+                                <th>Created</th>
+                                <th>Uptime</th>
+                                <th>Remaining</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workflow-runs">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">Loading workflow runs...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="rdp-details-container" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-display"></i> RDP Connection Details</span>
+                    <button type="button" class="btn-close btn-close-white" id="close-rdp-details"></button>
+                </div>
+                <div class="card-body">
+                    <div id="rdp-details"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Workflow Modal -->
+<div class="modal fade" id="createWorkflowModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-play-fill"></i> Start New RDP</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-workflow-form">
+                    <div class="mb-3">
+                        <label for="workflow-select" class="form-label">Select Windows Version</label>
+                        <select class="form-select" id="workflow-select" required>
+                            <option value="">-- Select Version --</option>
+                            <option value="win2019.yml">Windows 2019</option>
+                            <option value="win2022.yml">Windows 2022</option>
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-play-fill"></i> Start RDP
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RDP Details Modal -->
+<div class="modal fade" id="rdpDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-display"></i> RDP Connection Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="rdp-modal-content">
+                <!-- Content will be dynamically filled -->
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const refreshInterval = 60000; // 1 minute refresh interval
+    let refreshTimer;
+    let workflowRuns = [];
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadWorkflowRuns();
+        startRefreshTimer();
+        
+        // Event listeners
+        document.getElementById('refresh-btn').addEventListener('click', loadWorkflowRuns);
+        document.getElementById('refresh-runs').addEventListener('click', loadWorkflowRuns);
+        document.getElementById('refresh-all-btn').addEventListener('click', loadWorkflowRuns);
+        document.getElementById('close-rdp-details').addEventListener('click', function() {
+            document.getElementById('rdp-details-container').style.display = 'none';
+        });
+        
+        // Workflow creation form
+        document.getElementById('create-workflow-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const workflowId = document.getElementById('workflow-select').value;
+            if (!workflowId) {
+                alert('Please select a workflow');
+                return;
+            }
+            createWorkflowRun(workflowId);
+        });
+    });
+    
+    function startRefreshTimer() {
+        // Clear any existing timer
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+        }
+        
+        // Set new timer
+        refreshTimer = setInterval(loadWorkflowRuns, refreshInterval);
+    }
+    
+    function loadWorkflowRuns() {
+        fetch('/api/workflow-runs')
+            .then(response => response.json())
+            .then(data => {
+                workflowRuns = data;
+                updateWorkflowTable(data);
+                updateLastUpdated();
+                updateActiveCount(data);
+            })
+            .catch(error => {
+                console.error('Error fetching workflow runs:', error);
+                document.getElementById('workflow-runs').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> Error loading workflow runs
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    function updateWorkflowTable(runs) {
+        const tableBody = document.getElementById('workflow-runs');
+        
+        if (runs.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <i class="bi bi-info-circle"></i> No workflow runs found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        let html = '';
+        runs.forEach(run => {
+            const statusBadge = getStatusBadge(run.status, run.conclusion);
+            const remainingTime = run.remaining_time;
+            
+            html += `
+                <tr>
+                    <td>${statusBadge}</td>
+                    <td>${run.name}</td>
+                    <td>${formatDateTime(run.created_at)}</td>
+                    <td>${run.uptime}</td>
+                    <td>${remainingTime}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info" onclick="viewRdpDetails(${runs.indexOf(run)})">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                        <a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-github"></i>
+                        </a>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tableBody.innerHTML = html;
+    }
+    
+    function getStatusBadge(status, conclusion) {
+        if (status === 'completed') {
+            if (conclusion === 'success') {
+                return '<span class="badge badge-success">Completed</span>';
+            } else {
+                return '<span class="badge badge-failed">Failed</span>';
+            }
+        } else if (status === 'in_progress') {
+            return '<span class="badge badge-running">Running</span>';
+        } else {
+            return '<span class="badge badge-pending">Pending</span>';
+        }
+    }
+    
+    function formatDateTime(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    }
+    
+    function updateLastUpdated() {
+        const now = new Date();
+        document.getElementById('last-updated').textContent = now.toLocaleString();
+    }
+    
+    function updateActiveCount(runs) {
+        const activeRuns = runs.filter(run => run.status === 'in_progress');
+        document.getElementById('active-count').textContent = activeRuns.length;
+    }
+    
+    function viewRdpDetails(index) {
+        const run = workflowRuns[index];
+        
+        // Create the RDP details HTML
+        let detailsHtml = `
+            <h5>${run.name}</h5>
+            <div class="info-box">
+                <p><strong>Status:</strong> ${run.status}</p>
+                <p><strong>Created:</strong> ${formatDateTime(run.created_at)}</p>
+                <p><strong>Uptime:</strong> ${run.uptime}</p>
+                <p><strong>Remaining:</strong> ${run.remaining_time}</p>
+            </div>
+        `;
+        
+        // Add RDP connection info if available
+        if (run.rdp_info && (run.rdp_info.ip || run.rdp_info.username || run.rdp_info.password)) {
+            detailsHtml += `
+                <div class="rdp-info">
+                    <h6><i class="bi bi-display"></i> Connection Details</h6>
+                    <p><strong>IP/Host:</strong> ${run.rdp_info.ip || 'Not available yet'}</p>
+                    <p><strong>Username:</strong> ${run.rdp_info.username || 'Not available yet'}</p>
+                    <p><strong>Password:</strong> ${run.rdp_info.password || 'Not available yet'}</p>
+                </div>
+                <div class="mt-3">
+                    <a href="mstsc.exe /v:${run.rdp_info.ip}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-display"></i> Connect to RDP
+                    </a>
+                    <a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-github"></i> View on GitHub
+                    </a>
+                </div>
+            `;
+        } else {
+            detailsHtml += `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> RDP connection details are not available yet. 
+                    Please wait for the workflow to set up the RDP environment.
+                </div>
+            `;
+        }
+        
+        // Display in the details container
+        document.getElementById('rdp-details').innerHTML = detailsHtml;
+        document.getElementById('rdp-details-container').style.display = 'block';
+        
+        // Also update the modal for mobile view
+        document.getElementById('rdp-modal-content').innerHTML = detailsHtml;
+        
+        // If on mobile, show the modal
+        if (window.innerWidth < 768) {
+            new bootstrap.Modal(document.getElementById('rdpDetailsModal')).show();
+        }
+    }
+    
+    function createWorkflowRun(workflowId) {
+        // Get the modal to hide it later
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createWorkflowModal'));
+        
+        // Show loading state
+        const submitBtn = document.querySelector('#create-workflow-form button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Starting...';
+        submitBtn.disabled = true;
+        
+        // Create the workflow run
+        fetch('/api/create-workflow-run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `workflow_id=${encodeURIComponent(workflowId)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide the modal
+                modal.hide();
+                
+                // Show success message
+                alert('Workflow run started successfully! It may take a few minutes for the RDP to be ready.');
+                
+                // Refresh the data
+                setTimeout(loadWorkflowRuns, 5000);
+            } else {
+                alert(`Error: ${data.error || 'Unknown error'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error creating workflow run:', error);
+            alert('An error occurred while trying to start the workflow.');
+        })
+        .finally(() => {
+            // Reset button state
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+    }
+</script>
+{% endblock %} 
