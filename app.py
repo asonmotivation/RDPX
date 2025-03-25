@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import datetime
+import base64
 from dateutil import parser
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from dotenv import load_dotenv
@@ -61,6 +62,9 @@ def get_workflow_runs(limit=10):
             # Try to extract RDP info from the logs or job output
             rdp_info = get_rdp_info(run.id)
             
+            # Get job IDs for this run (for logs)
+            job_ids = get_job_ids(run.id)
+            
             runs_data.append({
                 'id': run.id,
                 'name': run.name or run.workflow_id,
@@ -71,13 +75,57 @@ def get_workflow_runs(limit=10):
                 'remaining_time': str(remaining_time).split('.')[0],  # Remove microseconds
                 'html_url': run.html_url,
                 'logs_url': logs_url,
-                'rdp_info': rdp_info
+                'rdp_info': rdp_info,
+                'job_ids': job_ids
             })
         
         return runs_data
     except Exception as e:
         print(f"Error fetching workflow runs: {e}")
         return []
+
+def get_job_ids(run_id):
+    """Get job IDs for a workflow run"""
+    try:
+        jobs_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/runs/{run_id}/jobs"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        response = requests.get(jobs_url, headers=headers)
+        
+        if response.status_code != 200:
+            return []
+        
+        jobs_data = response.json()
+        job_ids = [job.get('id') for job in jobs_data.get('jobs', [])]
+        return job_ids
+    except Exception as e:
+        print(f"Error getting job IDs: {e}")
+        return []
+
+def get_job_logs(job_id):
+    """Get logs for a specific job"""
+    try:
+        logs_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/actions/jobs/{job_id}/logs"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        response = requests.get(logs_url, headers=headers)
+        
+        if response.status_code == 200:
+            # Logs are returned as plain text
+            return response.text
+        elif response.status_code == 302:
+            # GitHub sometimes returns a redirect for logs
+            redirect_url = response.headers.get('Location')
+            if redirect_url:
+                redirect_response = requests.get(redirect_url)
+                if redirect_response.status_code == 200:
+                    return redirect_response.text
+        
+        return "Failed to fetch logs. Status code: " + str(response.status_code)
+    except Exception as e:
+        return f"Error fetching logs: {e}"
 
 def get_rdp_info(run_id):
     """Extract RDP connection information from workflow logs"""
@@ -178,6 +226,15 @@ def api_workflow_runs():
     limit = request.args.get('limit', 10, type=int)
     runs = get_workflow_runs(limit)
     return jsonify(runs)
+
+@app.route('/api/job-logs/<job_id>')
+def api_job_logs(job_id):
+    """API endpoint to get logs for a specific job"""
+    if 'user' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    logs = get_job_logs(job_id)
+    return jsonify({'logs': logs})
 
 @app.route('/api/create-workflow-run', methods=['POST'])
 def api_create_workflow_run():
