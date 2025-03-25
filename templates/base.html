@@ -4,202 +4,328 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RDP Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
     <style>
         :root {
+            --primary-color: #5D5CDE;
+            --secondary-color: #8583FF;
+            --success-color: #4CAF50;
+            --warning-color: #FFC107;
+            --error-color: #FF5252;
             --dark-bg: #121212;
-            --darker-bg: #0a0a0a;
-            --card-bg: #1e1e1e;
-            --text-primary: #e0e0e0;
-            --text-secondary: #aaaaaa;
-            --accent: #007bff;
-            --success: #28a745;
-            --warning: #ffc107;
-            --danger: #dc3545;
-            --info: #17a2b8;
+            --dark-card-bg: #1E1E1E;
+            --dark-text-primary: #E0E0E0;
+            --dark-text-secondary: #AAAAAA;
         }
         
         body {
             background-color: var(--dark-bg);
-            color: var(--text-primary);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--dark-text-primary);
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
         }
         
-        .navbar {
-            background-color: var(--darker-bg);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        .dashboard-card {
+            background-color: var(--dark-card-bg);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         
-        .card {
-            background-color: var(--card-bg);
-            border: none;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-            border-radius: 10px;
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
         }
         
-        .card-header {
-            background-color: rgba(255, 255, 255, 0.05);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        .metric-value {
+            font-size: 1.5rem;
             font-weight: 600;
         }
         
-        .table {
-            color: var(--text-primary);
+        .metric-label {
+            color: var(--dark-text-secondary);
+            font-size: 0.875rem;
         }
         
-        .table thead th {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
+        .progress-bar {
+            height: 8px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            transition: width 0.5s ease;
+        }
+        
+        .progress-fill.success {
+            background-color: var(--success-color);
+        }
+        
+        .progress-fill.warning {
+            background-color: var(--warning-color);
+        }
+        
+        .progress-fill.error {
+            background-color: var(--error-color);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
             font-weight: 600;
         }
         
-        .table td, .table th {
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        .status-badge.success {
+            background-color: rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
         }
         
-        .badge-running {
-            background-color: var(--info);
-            color: white;
+        .status-badge.running {
+            background-color: rgba(93, 92, 222, 0.3);
+            color: #5D5CDE;
         }
         
-        .badge-success {
-            background-color: var(--success);
-            color: white;
+        .status-badge.warning {
+            background-color: rgba(255, 193, 7, 0.3);
+            color: #FFC107;
         }
         
-        .badge-failed {
-            background-color: var(--danger);
-            color: white;
+        .status-badge.error {
+            background-color: rgba(255, 82, 82, 0.3);
+            color: #FF5252;
         }
         
-        .badge-pending {
-            background-color: var(--warning);
-            color: black;
+        .log-container {
+            background-color: #1A1A1A;
+            color: #E0E0E0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            border-radius: 0.5rem;
+            max-height: 500px;
+            overflow-y: auto;
         }
         
-        .login-container {
-            max-width: 400px;
-            margin: 100px auto;
+        .log-time {
+            color: #AAAAAA;
         }
         
+        .log-info {
+            color: #5D5CDE;
+        }
+        
+        .log-warning {
+            color: #FFC107;
+        }
+        
+        .log-error {
+            color: #FF5252;
+        }
+        
+        .log-success {
+            color: #4CAF50;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        
+        /* Custom button styles */
         .btn-primary {
-            background-color: var(--accent);
-            border-color: var(--accent);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
         
         .btn-primary:hover {
-            background-color: #0069d9;
-            border-color: #0062cc;
+            background-color: var(--secondary-color);
         }
         
-        .progress {
-            background-color: rgba(255, 255, 255, 0.1);
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
         
-        .countdown {
-            font-family: monospace;
-            font-size: 1.2rem;
-            color: var(--accent);
+        .btn-success:hover {
+            background-color: #3d9140;
         }
         
-        .info-box {
+        .btn-danger {
+            background-color: var(--error-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-danger:hover {
+            background-color: #e04545;
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            color: var(--dark-text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .btn-outline:hover {
             background-color: rgba(255, 255, 255, 0.05);
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 10px;
+            border-color: rgba(255, 255, 255, 0.3);
         }
         
-        .rdp-info {
-            font-family: monospace;
-            background-color: rgba(0, 0, 0, 0.2);
-            border-radius: 5px;
-            padding: 15px;
-            margin-top: 10px;
+        /* Modal styles */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.7);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .rdp-info p {
-            margin-bottom: 5px;
+        .modal-container {
+            background-color: var(--dark-card-bg);
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         
-        .refresh-icon {
-            cursor: pointer;
-            transition: transform 0.3s;
+        .modal-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .refresh-icon:hover {
-            transform: rotate(180deg);
+        .modal-body {
+            padding: 1rem;
         }
         
-        .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
+        .modal-footer {
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
         }
         
-        .status-indicator.active {
-            background-color: var(--success);
-            box-shadow: 0 0 5px var(--success);
+        /* Form input styles */
+        input, select {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--dark-text-primary);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            width: 100%;
         }
         
-        .status-indicator.inactive {
-            background-color: var(--danger);
-            box-shadow: 0 0 5px var(--danger);
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(93, 92, 222, 0.25);
         }
         
-        .status-indicator.pending {
-            background-color: var(--warning);
-            box-shadow: 0 0 5px var(--warning);
+        /* Table styles */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+            color: var(--dark-text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        td {
+            padding: 0.75rem 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.03);
         }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-display"></i> RDP Dashboard
-            </a>
-            {% if session.get('user') %}
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/logout">
-                            <i class="bi bi-box-arrow-right"></i> Logout
-                        </a>
-                    </li>
-                </ul>
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">
+                        <i class="bi bi-display text-purple-500"></i> RDP Dashboard
+                    </h1>
+                    <p class="text-gray-400">Monitor your GitHub Actions RDP instances</p>
+                </div>
+                <div id="monitor-status" class="flex items-center mt-4 md:mt-0">
+                    <div class="spinner mr-2"></div>
+                    <span>Connecting to monitor service...</span>
+                </div>
             </div>
-            {% endif %}
-        </div>
-    </nav>
-    
-    <div class="container mt-4">
+        </header>
+        
+        {% if session.get('user') %}
+            <div class="mb-4 text-right">
+                <a href="{{ url_for('logout') }}" class="btn-outline">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </div>
+        {% endif %}
+        
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-3 rounded-lg {% if category == 'error' %}bg-red-900 bg-opacity-20 text-red-400{% else %}bg-green-900 bg-opacity-20 text-green-400{% endif %}">
+                        <i class="bi {% if category == 'error' %}bi-exclamation-circle{% else %}bi-check-circle{% endif %} mr-2"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
         {% endwith %}
         
         {% block content %}{% endblock %}
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html> 
